@@ -81,8 +81,6 @@ def make_edge_smooth(args):
 def main():
     # parse arguments
     args = parse_args()
-    args.root_dir = "/Users/kangnam/project/animegan2-pytorch/data/train/target/orig"
-    args.out_dir = "/Users/kangnam/project/animegan2-pytorch/data/train/target/edge"
     make_edge_smooth(args)
 
 
