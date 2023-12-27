@@ -7,7 +7,7 @@ import tensorflow as tf
 from AnimeGANv2.net import generator as tf_generator
 
 import torch
-from model import Generator
+from models.generator import Generator
 
 
 def load_tf_weights(tf_path):

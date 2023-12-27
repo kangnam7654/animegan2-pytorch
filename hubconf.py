@@ -2,7 +2,7 @@ import torch
 
 
 def generator(pretrained=True, device="cpu", progress=True, check_hash=True):
-    from model import Generator
+    from models.generator import Generator
 
     release_url = "https://github.com/bryandlee/animegan2-pytorch/raw/main/weights"
     known = {

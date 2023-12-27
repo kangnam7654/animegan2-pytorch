@@ -7,7 +7,7 @@ import numpy as np
 import torch
 from torchvision.transforms.functional import to_tensor, to_pil_image
 
-from model import Generator
+from models.generator import Generator
 
 
 torch.backends.cudnn.enabled = False
