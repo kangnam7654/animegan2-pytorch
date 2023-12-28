@@ -1,11 +1,20 @@
+from os import PathLike
+from typing import Union
 from pathlib import Path
 
 from torch.utils.data import Dataset
+import torch
 from PIL import Image
 
 
 class AnimeDataSet(Dataset):
-    def __init__(self, photo_dir, anime_dir, smooth_dir, transform=None):
+    def __init__(
+        self,
+        photo_dir: Union[str, PathLike],
+        anime_dir: Union[str, PathLike],
+        smooth_dir: Union[str, PathLike],
+        transform=None,
+    ):
         self.photo_dir = Path(photo_dir)
         self.anime_dir = Path(anime_dir)
         self.smooth_dir = Path(smooth_dir)
@@ -20,10 +29,12 @@ class AnimeDataSet(Dataset):
     def __len__(self):
         return max(len(self.photo_files), len(self.anime_files))
 
-    def __getitem__(self, index):
+    def __getitem__(
+        self, index: int
+    ) -> [torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
         photo_idx = index
         anime_idx = index
-        
+
         if anime_idx > self.len_anime - 1:
             anime_idx -= self.len_anime * (index // self.len_anime)
 
@@ -36,25 +47,25 @@ class AnimeDataSet(Dataset):
 
         return photo, anime, anime_gray, smooth_gray
 
-    def load_photo(self, index):
+    def load_photo(self, index: int) -> torch.Tensor:
         fpath = self.photo_files[index]
         image = Image.open(fpath).convert("RGB")
         image = self._transform(image)
         return image
 
-    def load_anime(self, index):
+    def load_anime(self, index: int) -> torch.Tensor:
         fpath = self.anime_files[index]
         image = Image.open(fpath).convert("RGB")
         image = self._transform(image)
 
-        image_gray = Image.open(fpath).convert("L")
+        image_gray = Image.open(fpath).convert("L")  # Gray Scale
         image_gray = self._transform(image_gray)
 
         return image, image_gray
 
-    def load_anime_smooth(self, index):
+    def load_anime_smooth(self, index: int) -> torch.Tensor:
         fpath = self.anime_files[index]
 
-        image = Image.open(fpath).convert("L")
+        image = Image.open(fpath).convert("L")  # Gray Scale
         image = self._transform(image)
         return image
