@@ -19,14 +19,16 @@ class AnimeganPipeline(pl.LightningModule):
         w_col=10,
     ):
         super().__init__()
+        # Model
         self.generator = generator
         self.discriminator = discriminator
+        self.vgg = vgg
+
+        # optimizers
         self.g_lr = g_lr
         self.d_lr = d_lr
         self.g_opt, self.d_opt = self.configure_optimizers()
         self.automatic_optimization = False
-        self.vgg = vgg
-        self.device
 
         # weights for loss
         self.w_adv = w_adv
@@ -38,7 +40,7 @@ class AnimeganPipeline(pl.LightningModule):
         # | Pre-training |
         if self.current_epoch == 0:
             self._pre_training(batch)
-        
+
         else:
             # After Pre-training
             photo, anime, gray, smooth = batch  # p, a, x, y
@@ -156,17 +158,13 @@ class AnimeganPipeline(pl.LightningModule):
 
         output: Image of shape (H, W, C) (channel last)
         """
-        rgb_to_yuv_kernel = (
-            torch.tensor(
-                [
-                    [0.299, -0.14714119, 0.61497538],
-                    [0.587, -0.28886916, -0.51496512],
-                    [0.114, 0.43601035, -0.10001026],
-                ]
-            )
-            .float()
-            .to("mps")
-        )
+        rgb_to_yuv_kernel = torch.tensor(
+            [
+                [0.299, -0.14714119, 0.61497538],
+                [0.587, -0.28886916, -0.51496512],
+                [0.114, 0.43601035, -0.10001026],
+            ]
+        ).float()
 
         # -1 1 -> 0 1
         image = (image + 1.0) / 2.0
