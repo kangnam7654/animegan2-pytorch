@@ -16,8 +16,8 @@ class AnimeganPipeline(pl.LightningModule):
         discriminator: nn.Module,
         vgg: nn.Module,
         pretraining=False,
-        g_lr=1e-5,
-        d_lr=1e-5,
+        g_lr=8e-5,
+        d_lr=1e-4,
         w_adv=300,
         w_con=1.5,
         w_gray=3,
@@ -32,7 +32,6 @@ class AnimeganPipeline(pl.LightningModule):
         # optimizers
         self.g_lr = g_lr
         self.d_lr = d_lr
-        self.g_opt, self.d_opt = self.configure_optimizers()
         self.automatic_optimization = False
 
         # weights for loss
@@ -53,10 +52,14 @@ class AnimeganPipeline(pl.LightningModule):
         else:
             # After Pre-training
             photo, anime, gray, smooth = batch  # p, a, x, y
+            g_opt, d_opt = self.configure_optimizers()
 
             # | Discriminator |
             self.generator.requires_grad_(False)
+            self.generator.eval()
+
             self.discriminator.requires_grad_(True)
+            self.discriminator.train()
 
             fake = self.generator(photo)  # G(p)
 
@@ -83,15 +86,18 @@ class AnimeganPipeline(pl.LightningModule):
             )
 
             # | D Backward |
-            self.d_opt.zero_grad()
+            d_opt.zero_grad()
             self.manual_backward(d_loss)
-            self.d_opt.step()
+            d_opt.step()
 
             # ------------------------------------------------------------------------
 
             # | Generator |
             self.generator.requires_grad_(True)
+            self.generator.train()
+
             self.discriminator.requires_grad_(False)
+            self.discriminator.eval()
 
             fake = self.generator(photo)  # G(p)
             fake_out = self.discriminator(fake)  # D(G(p))
@@ -111,7 +117,11 @@ class AnimeganPipeline(pl.LightningModule):
 
             # | Generator Loss |
             # E[(G(p) - 1)^2]
-            g_adv_loss = torch.square(fake - torch.ones_like(fake)).mean()
+            """
+            24.01.04 by Kangnam Kim
+            It should be E[(D(G(p)) - 1)^2]
+            """
+            g_adv_loss = torch.square(fake_out - torch.ones_like(fake_out)).mean()
 
             # E[|| VGG(p) - VGG(G(p))||_1]
             g_con_loss = F.l1_loss(vgg_photo, vgg_fake)
@@ -135,9 +145,9 @@ class AnimeganPipeline(pl.LightningModule):
             )
 
             # | G Backward |
-            self.g_opt.zero_grad()
+            g_opt.zero_grad()
             self.manual_backward(g_loss)
-            self.g_opt.step()
+            g_opt.step()
 
             # | Logging |
             to_log = {"G_loss": g_loss, "D_loss": d_loss}
@@ -217,6 +227,7 @@ class AnimeganPipeline(pl.LightningModule):
     def _pre_training(self, batch):
         self.generator.requires_grad_(True)
         self.discriminator.requires_grad_(False)
+        g_opt, _ = self.configure_optimizers()
 
         photo, _, _, _ = batch
         fake = self.generator(photo)
@@ -226,9 +237,9 @@ class AnimeganPipeline(pl.LightningModule):
 
         con_loss = self.w_con * (F.l1_loss(vgg_photo, vgg_fake))
 
-        self.g_opt.zero_grad()
+        g_opt.zero_grad()
         self.manual_backward(con_loss)
-        self.g_opt.step()
+        g_opt.step()
 
         self.log("Pre Loss", con_loss, prog_bar=True)
 
@@ -238,9 +249,7 @@ class AnimeganPipeline(pl.LightningModule):
             raise ValueError("save_n must smaller than batch size.")
         if save_n != 0:
             concatenated = concatenated.split(save_n)
-        grid = make_grid(
-            concatenated, nrow=len([*tensor]), normalize=True, value_range=(-1, 1)
-        )
+        grid = make_grid(concatenated, nrow=1, normalize=True, value_range=(-1, 1))
         grid = grid * 255
         grid = grid.permute(1, 2, 0)
         image = grid.detach().cpu().numpy().astype(np.uint8)
