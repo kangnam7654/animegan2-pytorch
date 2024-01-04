@@ -16,6 +16,7 @@ def get_args():
     parser.add_argument("--photo_dir", type=str)
     parser.add_argument("--anime_dir", type=str)
     parser.add_argument("--smooth_dir", type=str)
+    parser.add_argument("--pretraining", action="store_true")
     args = parser.parse_args()
     return args
 
@@ -44,7 +45,10 @@ def main(args):
     loader = DataLoader(dataset=dataset)
 
     pipeline = AnimeganPipeline(
-        generator=generator, discriminator=discriminator, vgg=vgg,
+        generator=generator,
+        discriminator=discriminator,
+        vgg=vgg,
+        pretraining=args.pretraining,
     )
 
     trainer = pl.Trainer()

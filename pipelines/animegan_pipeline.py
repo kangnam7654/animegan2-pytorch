@@ -1,8 +1,12 @@
+from pathlib import Path
 from typing import Any
+import cv2
+import numpy as np
 import pytorch_lightning as pl
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from torchvision.utils import make_grid
 
 
 class AnimeganPipeline(pl.LightningModule):
@@ -11,6 +15,7 @@ class AnimeganPipeline(pl.LightningModule):
         generator: nn.Module,
         discriminator: nn.Module,
         vgg: nn.Module,
+        pretraining=False,
         g_lr=2e-4,
         d_lr=8e-5,
         w_adv=300,
@@ -36,9 +41,13 @@ class AnimeganPipeline(pl.LightningModule):
         self.w_gray = w_gray
         self.w_col = w_col
 
+        # pretrianing
+        self.pretraining = pretraining
+        self.training_step_counter = 0
+
     def training_step(self, batch, batch_idx):
         # | Pre-training |
-        if self.current_epoch == 0:
+        if self.pretraining and self.current_epoch == 0:
             self._pre_training(batch)
 
         else:
@@ -132,6 +141,30 @@ class AnimeganPipeline(pl.LightningModule):
             to_log = {"G_loss": g_loss, "D_loss": d_loss}
             self.log_dict(to_log, prog_bar=True)
 
+            # | Image Logging |
+            if self.training_step_counter % 100 == 0:
+                save_dir = Path(__file__).parents[1].joinpath("./logs/images")
+                save_dir.mkdir(parents=True, exist_ok=True)
+                full_path = save_dir.joinpath(
+                    f"{self.training_step_counter}".zfill(8) + ".jpg"
+                )
+                image = self.tensor_to_image(photo, fake, anime, gray, smooth, save_n=0)
+                cv2.imwrite(str(full_path), image)
+
+            # | Save Checkpoint |
+            if self.training_step_counter % 25000 == 0:
+                save_dir = Path(__file__).parents[1].joinpath("./logs/checkpoints")
+                save_dir.mkdir(parents=True, exist_ok=True)
+                full_path = save_dir.joinpath(
+                    f"{self.training_step_counter}".zfill(8) + ".pt"
+                )
+                to_save = {
+                    "G": self.generator.state_dict(),
+                    "D": self.discriminator.state_dict(),
+                }
+                torch.save(to_save, full_path)
+            self.training_step_counter += 1
+
     def configure_optimizers(self):
         g_opt = torch.optim.Adam(self.generator.parameters(), lr=self.g_lr)
         d_opt = torch.optim.Adam(self.discriminator.parameters(), lr=self.d_lr)
@@ -158,13 +191,17 @@ class AnimeganPipeline(pl.LightningModule):
 
         output: Image of shape (H, W, C) (channel last)
         """
-        rgb_to_yuv_kernel = torch.tensor(
-            [
-                [0.299, -0.14714119, 0.61497538],
-                [0.587, -0.28886916, -0.51496512],
-                [0.114, 0.43601035, -0.10001026],
-            ]
-        ).float()
+        rgb_to_yuv_kernel = (
+            torch.tensor(
+                [
+                    [0.299, -0.14714119, 0.61497538],
+                    [0.587, -0.28886916, -0.51496512],
+                    [0.114, 0.43601035, -0.10001026],
+                ]
+            )
+            .float()
+            .type_as(image)
+        )
 
         # -1 1 -> 0 1
         image = (image + 1.0) / 2.0
@@ -192,3 +229,18 @@ class AnimeganPipeline(pl.LightningModule):
         self.g_opt.step()
 
         self.log("Pre Loss", con_loss, prog_bar=True)
+
+    def tensor_to_image(self, *tensor: torch.Tensor, save_n: int = 0):
+        concatenated = torch.concat([*tensor], dim=-1)
+        if save_n > concatenated.size(0):
+            raise ValueError("save_n must smaller than batch size.")
+        if save_n != 0:
+            concatenated = concatenated.split(save_n)
+        grid = make_grid(
+            concatenated, nrow=len([*tensor]), normalize=True, value_range=(-1, 1)
+        )
+        grid = grid * 255
+        grid = grid.permute(1, 2, 0)
+        image = grid.detach().cpu().numpy().astype(np.uint8)
+        image = cv2.cvtColor(image, cv2.COLOR_RGB2BGR)
+        return image
