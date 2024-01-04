@@ -3,7 +3,6 @@
 from pathlib import Path
 import numpy as np
 import cv2, os, argparse
-from glob import glob
 from tqdm import tqdm
 
 
@@ -34,9 +33,17 @@ def make_edge_smooth(args):
         bgr_img = cv2.imread(f)
         gray_img = cv2.imread(f, 0)
 
-        bgr_img = cv2.resize(bgr_img, (args.image_size, args.image_size), interpolation=cv2.INTER_LANCZOS4)
+        bgr_img = cv2.resize(
+            bgr_img,
+            (args.image_size, args.image_size),
+            interpolation=cv2.INTER_LANCZOS4,
+        )
         pad_img = np.pad(bgr_img, ((2, 2), (2, 2), (0, 0)), mode="reflect")
-        gray_img = cv2.resize(gray_img, (args.image_size, args.image_size), interpolation=cv2.INTER_LANCZOS4)
+        gray_img = cv2.resize(
+            gray_img,
+            (args.image_size, args.image_size),
+            interpolation=cv2.INTER_LANCZOS4,
+        )
 
         edges = cv2.Canny(gray_img, 100, 200)
         dilation = cv2.dilate(edges, kernel)

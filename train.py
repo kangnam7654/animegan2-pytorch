@@ -1,5 +1,6 @@
 import argparse
 
+import torch
 from torch.utils.data import DataLoader
 from torchvision.transforms import v2
 import pytorch_lightning as pl
@@ -16,16 +17,28 @@ def get_args():
     parser.add_argument("--photo_dir", type=str)
     parser.add_argument("--anime_dir", type=str)
     parser.add_argument("--smooth_dir", type=str)
+    parser.add_argument("--weight", type=str, default=None)
+    parser.add_argument("--seed", type=int, default=2024)
     parser.add_argument("--pretraining", action="store_true")
     args = parser.parse_args()
     return args
 
 
 def main(args):
+    pl.seed_everything(args.seed)
     # | Model Load |
     generator = Generator()
     discriminator = Discriminator()
     vgg = Vgg19()
+
+    # | Weight Load |
+    if args.weight is not None:
+        state_dict = torch.load(args.weight, map_location=torch.device("cpu"))
+        try:
+            generator.load_state_dict(state_dict=state_dict["G"])
+            discriminator.load_state_dict(state_dict=state_dict["D"])
+        except Exception:
+            generator.load_state_dict(state_dict=state_dict)
 
     # | Dataset Load |
     transform = v2.Compose(
@@ -42,7 +55,7 @@ def main(args):
         smooth_dir=args.smooth_dir,
         transform=transform,
     )
-    loader = DataLoader(dataset=dataset)
+    loader = DataLoader(dataset=dataset, shuffle=True)
 
     pipeline = AnimeganPipeline(
         generator=generator,
