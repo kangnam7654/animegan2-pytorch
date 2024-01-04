@@ -41,7 +41,7 @@ class AnimeDataSet(Dataset):
         if photo_idx > self.len_photo - 1:
             photo_idx -= self.len_photo * (index // self.len_photo)
 
-        photo = self.load_photo(index)
+        photo = self.load_photo(photo_idx)
         anime, anime_gray = self.load_anime(anime_idx)
         smooth_gray = self.load_anime_smooth(anime_idx)
 
