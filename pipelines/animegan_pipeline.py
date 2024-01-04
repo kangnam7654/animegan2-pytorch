@@ -16,8 +16,8 @@ class AnimeganPipeline(pl.LightningModule):
         discriminator: nn.Module,
         vgg: nn.Module,
         pretraining=False,
-        g_lr=2e-4,
-        d_lr=8e-5,
+        g_lr=5e-8,
+        d_lr=5e-8,
         w_adv=300,
         w_con=1.5,
         w_gray=3,
@@ -120,10 +120,12 @@ class AnimeganPipeline(pl.LightningModule):
             g_gray_loss = F.l1_loss(gram_fake, gram_gray)
 
             # E[||Y(G(p)) - Y(p)||_1 + ||U(G(p)) - U(p)||_Huber + ||V(G(p)) - V(p))||_Huber]
+            photo_y, photo_u, photo_v = torch.split(yuv_photo, 1, 3)
+            fake_y, fake_u, fake_v = torch.split(yuv_fake, 1, 3)
             g_color_loss = (
-                F.l1_loss(yuv_fake[:, 0, :, :], yuv_photo[:, 0, :, :])
-                + F.huber_loss(yuv_fake[:, 1, :, :], yuv_photo[:, 1, :, :])
-                + F.huber_loss(yuv_fake[:, 2, :, :], yuv_photo[:, 2, :, :])
+                F.l1_loss(fake_y, photo_y)
+                + F.huber_loss(fake_u, photo_u)
+                + F.huber_loss(fake_v, photo_v)
             )
             g_loss = (
                 self.w_adv * g_adv_loss
