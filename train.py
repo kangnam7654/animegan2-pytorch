@@ -19,6 +19,7 @@ def get_args():
     parser.add_argument("--smooth_dir", type=str)
     parser.add_argument("--weight", type=str, default=None)
     parser.add_argument("--seed", type=int, default=2024)
+    parser.add_argument("--batch_size", type=int, default=2)
     parser.add_argument("--pretraining", action="store_true")
     args = parser.parse_args()
     return args
@@ -55,7 +56,7 @@ def main(args):
         smooth_dir=args.smooth_dir,
         transform=transform,
     )
-    loader = DataLoader(dataset=dataset, shuffle=True)
+    loader = DataLoader(dataset=dataset, shuffle=True, batch_size=args.batch_size)
 
     pipeline = AnimeganPipeline(
         generator=generator,
