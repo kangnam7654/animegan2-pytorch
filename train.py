@@ -21,6 +21,12 @@ def get_args():
     parser.add_argument("--seed", type=int, default=2024)
     parser.add_argument("--batch_size", type=int, default=2)
     parser.add_argument("--pretraining", action="store_true")
+    parser.add_argument("--g_lr", type=float, default=8e-5)
+    parser.add_argument("--d_lr", type=float, default=1e-4)
+    parser.add_argument("--w_adv", type=float, default=300)
+    parser.add_argument("--w_con", type=float, default=1.5)
+    parser.add_argument("--w_gray", type=float, default=3)
+    parser.add_argument("--w_col", type=float, default=10)
     args = parser.parse_args()
     return args
 
@@ -63,6 +69,12 @@ def main(args):
         discriminator=discriminator,
         vgg=vgg,
         pretraining=args.pretraining,
+        g_lr=args.g_lr,
+        d_lr=args.d_lr,
+        w_adv=args.w_adv,
+        w_con=args.w_con,
+        w_gray=args.w_gray,
+        w_col=args.w_col,
     )
 
     trainer = pl.Trainer()
