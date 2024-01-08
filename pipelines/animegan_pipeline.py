@@ -22,6 +22,7 @@ class AnimeganPipeline(pl.LightningModule):
         w_con=1.5,
         w_gray=3,
         w_col=10,
+        save_every = 5000,
     ):
         super().__init__()
         # Model
@@ -44,6 +45,9 @@ class AnimeganPipeline(pl.LightningModule):
         self.pretraining = pretraining
         self.training_step_counter = 0
 
+        # save
+        self.save_every = save_every
+        
     def training_step(self, batch, batch_idx):
         # | Pre-training |
         if self.pretraining and self.current_epoch == 0:
@@ -164,7 +168,7 @@ class AnimeganPipeline(pl.LightningModule):
                 cv2.imwrite(str(full_path), image)
 
             # | Save Checkpoint |
-            if self.training_step_counter % 25000 == 0:
+            if self.training_step_counter % self.save_every == 0:
                 save_dir = Path(__file__).parents[1].joinpath("./logs/checkpoints")
                 save_dir.mkdir(parents=True, exist_ok=True)
                 full_path = save_dir.joinpath(

@@ -21,6 +21,7 @@ def get_args():
     parser.add_argument("--seed", type=int, default=2024)
     parser.add_argument("--batch_size", type=int, default=2)
     parser.add_argument("--pretraining", action="store_true")
+    parser.add_argument("--save_every", type=int, default=5000)
     parser.add_argument("--g_lr", type=float, default=8e-5)
     parser.add_argument("--d_lr", type=float, default=1e-4)
     parser.add_argument("--w_adv", type=float, default=300)
