@@ -1,14 +1,15 @@
+import io
+import base64
+
 import numpy as np
 import torch
-from torchvision.transforms import v2
-import io
 from PIL import Image
-from fastapi import FastAPI
-from fastapi import UploadFile, File
-from pydantic import BaseModel
+from fastapi import UploadFile, File, FastAPI
+from torchvision.transforms import v2
+import uvicorn
+
 from models.generator import Generator
 
-import uvicorn
 
 # Define Transform
 T = v2.Compose(
@@ -39,10 +40,12 @@ def preprocess_image(image):
 
 def postprocess_image(data):
     data = data.squeeze()
-    data = ((data + 1) * 127.5).to(torch.uint8)
-    data = torch.permute(data, (1, 2, 0))
+    data = torch.clip(data, -1, 1)
+    data = data.permute(1, 2, 0)
     data = data.detach().cpu().numpy()
-    data = data.tobytes()
+    data = (data + 1) * 127.5
+    data = data.astype(np.uint8).tobytes()
+    data = base64.b64encode(data).decode("utf-8")
     return data
 
 
@@ -54,3 +57,7 @@ async def predict(file: UploadFile = File(...)):
     prediction = model(image)
     prediction = postprocess_image(prediction)
     return {"prediction": prediction}
+
+
+if __name__ == "__main__":
+    uvicorn.run(app, host="127.0.0.1", port=8000)
