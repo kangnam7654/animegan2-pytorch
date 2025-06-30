@@ -1,5 +1,6 @@
 from pathlib import Path
 from typing import Any
+
 import cv2
 import numpy as np
 import pytorch_lightning as pl
@@ -16,13 +17,13 @@ class AnimeganPipeline(pl.LightningModule):
         discriminator: nn.Module,
         vgg: nn.Module,
         pretraining=False,
-        g_lr=8e-5,
-        d_lr=1e-4,
-        w_adv=300,
-        w_con=1.5,
-        w_gray=3,
-        w_col=10,
-        save_every = 5000,
+        g_lr: float = 8e-5,
+        d_lr: float = 1e-4,
+        w_adv: float = 300,
+        w_con: float = 1.5,
+        w_gray: float = 3,
+        w_col: float = 10,
+        save_every: int = 5000,
     ):
         super().__init__()
         # Model
@@ -47,7 +48,7 @@ class AnimeganPipeline(pl.LightningModule):
 
         # save
         self.save_every = save_every
-        
+
     def training_step(self, batch, batch_idx):
         # | Pre-training |
         if self.pretraining and self.current_epoch == 0:
