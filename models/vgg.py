@@ -1,7 +1,6 @@
-from numpy.lib.arraysetops import isin
-import torchvision.models as models
-import torch.nn as nn
 import torch
+import torch.nn as nn
+import torchvision.models as models
 
 vgg_mean = torch.tensor([0.485, 0.456, 0.406]).float()
 vgg_std = torch.tensor([0.229, 0.224, 0.225]).float()
