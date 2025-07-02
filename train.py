@@ -1,15 +1,23 @@
 import argparse
 
 import torch
+from lightning.pytorch import Trainer, seed_everything
+from lightning.pytorch.loggers import MLFlowLogger, WandbLogger
 from torch.utils.data import DataLoader
-from torchvision.transforms import v2
-import pytorch_lightning as pl
+from torchvision.transforms.v2 import (
+    Compose,
+    InterpolationMode,
+    Normalize,
+    Resize,
+    ToTensor,
+)
 
 from datamodules.animegan_datamodule import AnimeDataSet
-from pipelines.animegan_pipeline import AnimeganPipeline
+from models.criterion import AdversarialLoss, ColorLoss, ContentLoss, GrayscaleLoss
 from models.discriminator import Discriminator
 from models.generator import Generator
 from models.vgg import Vgg19
+from pipelines.animegan_pipeline import AnimeganPipeline
 
 
 def get_args():
@@ -33,8 +41,9 @@ def get_args():
 
 
 def main(args):
-    pl.seed_everything(args.seed)
+    seed_everything(args.seed)
     # | Model Load |
+
     generator = Generator()
     discriminator = Discriminator()
     vgg = Vgg19()
@@ -49,11 +58,11 @@ def main(args):
             generator.load_state_dict(state_dict=state_dict)
 
     # | Dataset Load |
-    transform = v2.Compose(
+    transform = Compose(
         [
-            v2.Resize((256, 256), interpolation=v2.InterpolationMode.LANCZOS),
-            v2.ToTensor(),
-            v2.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5)),
+            Resize((256, 256), interpolation=InterpolationMode.BILINEAR),
+            ToTensor(),
+            Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5)),
         ]
     )
 
@@ -65,10 +74,20 @@ def main(args):
     )
     loader = DataLoader(dataset=dataset, shuffle=True, batch_size=args.batch_size)
 
+    adv_loss = AdversarialLoss()
+    con_loss = ContentLoss()
+    gray_loss = GrayscaleLoss()
+    col_loss = ColorLoss()
+
     pipeline = AnimeganPipeline(
         generator=generator,
         discriminator=discriminator,
         vgg=vgg,
+        adv_loss=adv_loss,  # AdversarialLoss(),
+        con_loss=con_loss,  # ContentLoss(),
+        gray_loss=gray_loss,  # GrayscaleLoss(),
+        col_loss=col_loss,  # ColorLoss(),
+        save_every=args.save_every,
         pretraining=args.pretraining,
         g_lr=args.g_lr,
         d_lr=args.d_lr,
@@ -77,8 +96,12 @@ def main(args):
         w_gray=args.w_gray,
         w_col=args.w_col,
     )
-
-    trainer = pl.Trainer()
+    logger_mlflow = MLFlowLogger(
+        experiment_name="animegan2", run_name="animegan2_training"
+    )
+    logger_wandb = WandbLogger(project="animegan2", name="animegan2_training")
+    loggers = [logger_mlflow, logger_wandb]
+    trainer = Trainer(logger=loggers)
     trainer.fit(model=pipeline, train_dataloaders=loader)
 
 
