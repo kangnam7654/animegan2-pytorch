@@ -1,56 +1,82 @@
 from pathlib import Path
-from typing import Any
 
 import cv2
 import numpy as np
-import pytorch_lightning as pl
 import torch
-import torch.nn as nn
 import torch.nn.functional as F
+from lightning.pytorch import LightningModule
 from torchvision.utils import make_grid
 
+from models import Discriminator, Generator, Vgg19
+from models.criterion import AdversarialLoss, ColorLoss, ContentLoss, GrayscaleLoss
 
-class AnimeganPipeline(pl.LightningModule):
+
+class AnimeganPipeline(LightningModule):
     def __init__(
         self,
-        generator: nn.Module,
-        discriminator: nn.Module,
-        vgg: nn.Module,
-        pretraining=False,
-        g_lr: float = 8e-5,
-        d_lr: float = 1e-4,
+        *,
+        generator: Generator,
+        discriminator: Discriminator,
+        vgg: Vgg19,
+        adv_loss: AdversarialLoss,
+        con_loss: ContentLoss,
+        gray_loss: GrayscaleLoss,
+        col_loss: ColorLoss,
         w_adv: float = 300,
         w_con: float = 1.5,
         w_gray: float = 3,
         w_col: float = 10,
+        g_lr: float = 8e-5,
+        d_lr: float = 1e-4,
         save_every: int = 5000,
+        pretraining: bool = False,
     ):
         super().__init__()
-        # Model
+        # ==========
+        # | Models |
+        # ==========
         self.generator = generator
         self.discriminator = discriminator
         self.vgg = vgg
 
-        # optimizers
+        # ==============
+        # | Optimizers |
+        # ==============
         self.g_lr = g_lr
         self.d_lr = d_lr
         self.automatic_optimization = False
 
-        # weights for loss
+        # ==================
+        # | Loss Functions |
+        # ==================
+        self.adv_loss = adv_loss
+        self.con_loss = con_loss
+        self.gray_loss = gray_loss
+        self.col_loss = col_loss
+
+        # ====================
+        # | Weights for loss |
+        # ====================
         self.w_adv = w_adv
         self.w_con = w_con
         self.w_gray = w_gray
         self.w_col = w_col
 
-        # pretrianing
+        # ==========================
+        # | Pre-training Parameters |
+        # ==========================
         self.pretraining = pretraining
         self.training_step_counter = 0
 
-        # save
+        # =========================
+        # | Save Checkpoint Every |
+        # =========================
         self.save_every = save_every
 
-    def training_step(self, batch, batch_idx):
-        # | Pre-training |
+    def training_step(self, batch, batch_idx):  # type: ignore[override]
+        # ==========================
+        # | Pre-training if needed |
+        # ==========================
         if self.pretraining and self.current_epoch == 0:
             self._pre_training(batch)
 
@@ -59,7 +85,9 @@ class AnimeganPipeline(pl.LightningModule):
             photo, anime, gray, smooth = batch  # p, a, x, y
             g_opt, d_opt = self.configure_optimizers()
 
+            # =================
             # | Discriminator |
+            # =================
             self.generator.requires_grad_(False)
             self.generator.eval()
 
@@ -73,31 +101,41 @@ class AnimeganPipeline(pl.LightningModule):
             gray_out = self.discriminator(gray)  # D(x)
             smooth_out = self.discriminator(smooth)  # D(y)
 
+            # ======================
             # | Discirminator Loss |
+            # ======================
             # E[(D(a) - 1)^2]
-            d_real_loss = torch.square(real_out - torch.ones_like(real_out)).mean()
+            # d_real_loss = torch.square(real_out - torch.ones_like(real_out)).mean()
+            d_real_loss = self.adv_loss(real_out, torch.ones_like(real_out))
 
             # E[(D(G(p)))^2]
-            d_fake_loss = torch.square(fake_out).mean()
+            # d_fake_loss = torch.square(fake_out).mean()
+            d_fake_loss = self.adv_loss(fake_out, torch.zeros_like(fake_out))
 
             # E[(D(x))^2]
-            d_gray_loss = torch.square(gray_out).mean()
+            # d_gray_loss = torch.square(gray_out).mean()
+            d_gray_loss = self.adv_loss(gray_out, torch.zeros_like(gray_out))
 
             # E[(D(y))^2]
-            d_smooth_loss = torch.square(smooth_out).mean()
+            # d_smooth_loss = torch.square(smooth_out).mean()
+            d_smooth_loss = self.adv_loss(smooth_out, torch.zeros_like(smooth_out))
 
             d_loss = self.w_adv * (
                 d_real_loss + d_fake_loss + d_gray_loss + 0.1 * d_smooth_loss
             )
 
+            # ==============
             # | D Backward |
+            # ==============
             d_opt.zero_grad()
             self.manual_backward(d_loss)
             d_opt.step()
 
             # ------------------------------------------------------------------------
 
+            # =============
             # | Generator |
+            # =============
             self.generator.requires_grad_(True)
             self.generator.train()
 
@@ -107,18 +145,10 @@ class AnimeganPipeline(pl.LightningModule):
             fake = self.generator(photo)  # G(p)
             fake_out = self.discriminator(fake)  # D(G(p))
 
-            # | RGB -> YUV |
-            yuv_photo = self.rgb_to_yuv(photo)
-            yuv_fake = self.rgb_to_yuv(fake)
-
             # | For perceptual Loss |
             vgg_photo = self.vgg(photo)  # VGG(p)
             vgg_fake = self.vgg(fake)  # VGG(G(p))
             vgg_gray = self.vgg(gray)  # VGG(G(x))
-
-            # | Gram |
-            gram_fake = self.gram(vgg_fake)  # Gram(VGG(G(p)))
-            gram_gray = self.gram(vgg_gray)  # Gram(VGG(x))
 
             # | Generator Loss |
             # E[(G(p) - 1)^2]
@@ -126,22 +156,18 @@ class AnimeganPipeline(pl.LightningModule):
             24.01.04 by Kangnam Kim
             It should be E[(D(G(p)) - 1)^2]
             """
-            g_adv_loss = torch.square(fake_out - torch.ones_like(fake_out)).mean()
+            # g_adv_loss = torch.square(fake_out - torch.ones_like(fake_out)).mean()
+            g_adv_loss = self.adv_loss(fake_out, torch.ones_like(fake_out))
 
             # E[|| VGG(p) - VGG(G(p))||_1]
-            g_con_loss = F.l1_loss(vgg_photo, vgg_fake)
+            g_con_loss = self.con_loss(vgg_photo, vgg_fake)
 
             # E[||Gram(VGG(G(p))) - Gram(VGG(x))||_1]
-            g_gray_loss = F.l1_loss(gram_fake, gram_gray)
+            g_gray_loss = self.gray_loss(vgg_gray, vgg_fake)
 
             # E[||Y(G(p)) - Y(p)||_1 + ||U(G(p)) - U(p)||_Huber + ||V(G(p)) - V(p))||_Huber]
-            photo_y, photo_u, photo_v = torch.split(yuv_photo, 1, 3)
-            fake_y, fake_u, fake_v = torch.split(yuv_fake, 1, 3)
-            g_color_loss = (
-                F.l1_loss(fake_y, photo_y)
-                + F.huber_loss(fake_u, photo_u)
-                + F.huber_loss(fake_v, photo_v)
-            )
+            g_color_loss = self.col_loss(photo, fake)
+
             g_loss = (
                 self.w_adv * g_adv_loss
                 + self.w_con * g_con_loss
@@ -149,7 +175,9 @@ class AnimeganPipeline(pl.LightningModule):
                 + self.w_col * g_color_loss
             )
 
+            # ==============
             # | G Backward |
+            # ==============
             g_opt.zero_grad()
             self.manual_backward(g_loss)
             g_opt.step()
@@ -187,47 +215,6 @@ class AnimeganPipeline(pl.LightningModule):
         d_opt = torch.optim.Adam(self.discriminator.parameters(), lr=self.d_lr)
         return g_opt, d_opt
 
-    def gram(self, input):
-        """
-        Calculate Gram Matrix
-
-        https://pytorch.org/tutorials/advanced/neural_style_tutorial.html#style-loss
-        """
-        b, c, w, h = input.size()
-
-        x = input.view(b * c, w * h)
-
-        G = torch.mm(x, x.T)
-
-        # normalize by total elements
-        return G.div(b * c * w * h)
-
-    def rgb_to_yuv(self, image):
-        """
-        https://en.wikipedia.org/wiki/YUV
-
-        output: Image of shape (H, W, C) (channel last)
-        """
-        rgb_to_yuv_kernel = (
-            torch.tensor(
-                [
-                    [0.299, -0.14714119, 0.61497538],
-                    [0.587, -0.28886916, -0.51496512],
-                    [0.114, 0.43601035, -0.10001026],
-                ]
-            )
-            .float()
-            .type_as(image)
-        )
-
-        # -1 1 -> 0 1
-        image = (image + 1.0) / 2.0
-
-        yuv_img = torch.tensordot(
-            image, rgb_to_yuv_kernel, dims=([image.ndim - 3], [0])
-        )
-
-        return yuv_img
 
     def _pre_training(self, batch):
         self.generator.requires_grad_(True)
