@@ -1,12 +1,21 @@
 [project]
-name = "animegan2"
+name = "animegan2-pytorch"
 version = "0.1.0"
 requires-python = ">=3.11"
 dependencies = [
     "lightning>=2.5.2",
     "mlflow>=3.1.1",
     "opencv-python>=4.11.0.86",
+    "opencv-python-headless>=4.11.0.86",
     "torch>=2.7.1",
     "torchvision>=0.22.1",
-    "wandb>=0.20.1",
+    "wandb>=0.21.0",
 ]
+
+[dependency-groups]
+dev = [
+    "animegan2-pytorch",
+]
+
+[tool.uv.sources]
+animegan2-pytorch = { workspace = true }
