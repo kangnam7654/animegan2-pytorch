@@ -1,3 +1,5 @@
+# Custom .gitignore file for Python projects
+.*
 .DS_Store
 lightning_logs
 data
