@@ -1,0 +1,61 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: triton-server
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: "triton-server"
+  template:
+    metadata:
+      labels:
+        app: triton-server
+    spec:
+      containers:
+      - name: "triton-server"
+        image: nvcr.io/nvidia/tritonserver:25.06-py3
+        ports:
+        - containerPort: 8000
+        - containerPort: 8001
+        - containerPort: 8002
+        volumeMounts:
+        - mountPath: /models
+          name: model-repository
+        args: 
+        - "tritonserver"
+        - "--model-repository=/models"
+        - "--disable-auto-complete-config"
+        resources:
+          limits:
+            nvidia.com/gpu: "1" # Request 1 GPU
+            cpu: "500m"
+            memory: "4Gi"
+          requests:
+            cpu: "500m"
+            memory: "2Gi"
+      volumes:
+      - name: model-repository
+        hostPath: 
+          path: /home/kangnam/projects/animegan2-pytorch/deployment/triton/model_repository
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: triton-service
+spec:
+  selector:
+    app: triton-server
+  ports:
+  - protocol: TCP
+    port: 8000
+    targetPort: 8000
+    name: http
+  - protocol: TCP
+    port: 8001
+    targetPort: 8001
+    name: grpc
+  - protocol: TCP
+    port: 8002
+    targetPort: 8002
+    name: metrics

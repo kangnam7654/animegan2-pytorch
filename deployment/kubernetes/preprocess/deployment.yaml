@@ -1,0 +1,48 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: preprocess-server
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: preprocess-server
+  template:
+    metadata:
+      labels:
+        app: preprocess-server
+    spec:
+      containers:
+      - name: preprocess-server
+        image: kangnam7654/animegan2-preprocess:2
+        args:
+          - "uv"
+          - "run"
+          - "uvicorn"
+          - "serving.app:app"
+          - "--host"
+          - "0.0.0.0"
+          - "--port"
+          - "8004"
+
+        ports:
+        - containerPort: 8004
+        resources:
+          limits:
+            cpu: "500m"
+            memory: "2Gi"
+          requests:
+            cpu: "500m"
+            memory: "2Gi"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: preprocess-service
+spec:
+  selector:
+    app: preprocess-server
+  ports:
+  - protocol: TCP
+    port: 8004
+    targetPort: 8004
