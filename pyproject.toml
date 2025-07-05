@@ -17,9 +17,7 @@ dependencies = [
 ]
 
 [dependency-groups]
-dev = [
-    "animegan2-pytorch",
-]
+dev = []
 
 [tool.uv.sources]
 animegan2-pytorch = { workspace = true }
