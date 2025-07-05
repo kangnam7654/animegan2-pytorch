@@ -2,10 +2,9 @@
 .*
 .DS_Store
 lightning_logs
-data
 logs
 app
-scripts
+./scripts
 mlruns
 wandb
 
